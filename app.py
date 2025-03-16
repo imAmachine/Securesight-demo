@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, Response, render_template
 import cv2
 import numpy as np
 from utils.mediapipe import MediaPipePose
@@ -110,12 +110,8 @@ def process_frame(frame):
     
     return frame
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-def start_webcam():
-    cap = cv2.VideoCapture(0)  # Захват видео с веб-камеры
+def generate_frames():
+    cap = cv2.VideoCapture(1)
 
     while True:
         ret, frame = cap.read()
@@ -126,20 +122,20 @@ def start_webcam():
         # Обработка кадра
         processed_frame = process_frame(frame)
 
-        # Отображение обработанного кадра
-        cv2.imshow('Processed Webcam Feed', processed_frame)
+        # Конвертация кадра в JPEG
+        ret, buffer = cv2.imencode('.jpg', processed_frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-        # Выход по нажатию клавиши 'q'
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-    cap.release()
-    cv2.destroyAllWindows()
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_frames(),
+                   mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
-    # Запуск захвата видео с веб-камеры в отдельном потоке
-    webcam_thread = threading.Thread(target=start_webcam)
-    webcam_thread.start()
-
-    # Запуск Flask-приложения
-    app.run(host='localhost', port=5000, debug=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
