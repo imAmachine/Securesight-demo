@@ -1,6 +1,8 @@
+import yaml
 from flask import Flask, Response, render_template
 import cv2
 import threading
+import numpy as np
 
 from utils.action_classifier import get_classifier
 from utils.pose_estimation import get_pose_estimator
@@ -27,14 +29,47 @@ def process_frame(rgb_frame):
         tracker.increment_ages()
         return rgb_frame
 
-    predictions = convert_to_openpose_skeletons(predictions)
-    predictions, _ = tracker.predict(rgb_frame, predictions)
+    # Ограничение количества объектов
+    max_objects = 8  # Начните с небольшого числа
+    if len(predictions) > max_objects:
+        predictions = predictions[:max_objects]
+    
+    # Преобразование всех bbox в numpy массивы
+    for pred in predictions:
+        if hasattr(pred, "bbox") and pred.bbox is not None:
+            if not isinstance(pred.bbox, np.ndarray):
+                pred.bbox = np.array(pred.bbox)
 
+    predictions = convert_to_openpose_skeletons(predictions)
+    
+    try:
+        # Обернем вызов трекера в try-except
+        predictions, _ = tracker.predict(rgb_frame, predictions)
+    except Exception as e:
+        print(f"Ошибка трекера: {e}")
+        # В случае ошибки трекера, просто увеличиваем возраст треков
+        tracker.increment_ages()
+    
     if len(predictions) > 0:
-        predictions = action_classifier.classify(predictions)
+        try:
+            predictions = action_classifier.classify(predictions)
+        except Exception as e:
+            print(f"Ошибка классификатора: {e}")
+    
+    # Еще раз проверяем bbox перед рендерингом
+    for pred in predictions:
+        if hasattr(pred, "bbox") and pred.bbox is not None:
+            if not isinstance(pred.bbox, np.ndarray):
+                pred.bbox = np.array(pred.bbox)
     
     drawer = Drawer()
-    annotated_frame = drawer.render_frame(rgb_frame, predictions, text_color='green', add_blank=False, Mode='action')  # Add annotations to frame
+    try:
+        annotated_frame = drawer.render_frame(rgb_frame, predictions, text_color='green', add_blank=False)
+    except Exception as e:
+        print(f"Ошибка рендеринга: {e}")
+        # В случае ошибки рендеринга возвращаем исходный кадр
+        return rgb_frame
+    
     return annotated_frame
 
 def generate_frames():

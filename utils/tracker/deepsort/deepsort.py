@@ -35,52 +35,57 @@ class DeepSort(object):
                     tracked id, tracked color and bbox (top,left,btm,right) attributes.
             debug_img (np.ndarray or None)
         """
+        try:
+            # generate detections
+            bbox_list = []
+            for i, pred in enumerate(predictions):
+                # Проверка наличия атрибута bbox
+                if not hasattr(pred, "bbox"):
+                    print(f"[WARNING] Объект predictions[{i}] не содержит атрибута 'bbox'. Пропускаем.")
+                    continue
 
-        # generate detections
-        bbox_list = []
-        for i, pred in enumerate(predictions):
-            # Проверка наличия атрибута bbox
-            if not hasattr(pred, "bbox"):
-                print(f"[WARNING] Объект predictions[{i}] не содержит атрибута 'bbox'. Пропускаем.")
-                continue
+                # Преобразуем pred.bbox в numpy-массив и выпрямляем его
+                try:
+                    bbox_array = np.array(pred.bbox, dtype=float).flatten()
+                except Exception as e:
+                    print(f"[WARNING] Не удалось преобразовать bbox для predictions[{i}]: {pred.bbox}. Ошибка: {e}")
+                    continue
 
-            # Преобразуем pred.bbox в numpy-массив и выпрямляем его
-            try:
-                bbox_array = np.array(pred.bbox, dtype=float).flatten()
-            except Exception as e:
-                print(f"[WARNING] Не удалось преобразовать bbox для predictions[{i}]: {pred.bbox}. Ошибка: {e}")
-                continue
+                # Если в bbox_array больше 4 элементов, берем только первые 4
+                if bbox_array.size > 4:
+                    bbox_array = bbox_array[:4]
+                elif bbox_array.size < 4:
+                    print(f"[WARNING] bbox в predictions[{i}] имеет недостаточную длину ({bbox_array.size}). Пропускаем.")
+                    continue
 
-            # Если в bbox_array больше 4 элементов, берем только первые 4
-            if bbox_array.size > 4:
-                bbox_array = bbox_array[:4]
-            elif bbox_array.size < 4:
-                print(f"[WARNING] bbox в predictions[{i}] имеет недостаточную длину ({bbox_array.size}). Пропускаем.")
-                continue
+                bbox_list.append(bbox_array)
 
-            bbox_list.append(bbox_array)
+            if len(bbox_list) == 0:
+                print("[ERROR] Нет корректных bbox для обработки.")
+                bbox_tlwh = np.empty((0, 4), dtype=float)
+            else:
+                # Гарантируем, что все элементы имеют форму (4,)
+                bbox_tlwh = np.stack(bbox_list)
+            bbox_tlbr = self.tlwh_to_tlbr(bbox_tlwh)
+            features = self._get_features(bbox_tlbr, rgb_img)
+            detections = [Detection(bbox, features[i]) for i, bbox in enumerate(bbox_tlwh)]
 
-        if len(bbox_list) == 0:
-            print("[ERROR] Нет корректных bbox для обработки.")
-            bbox_tlwh = np.empty((0, 4), dtype=float)
-        else:
-            # Гарантируем, что все элементы имеют форму (4,)
-            bbox_tlwh = np.stack(bbox_list)
-        bbox_tlbr = self.tlwh_to_tlbr(bbox_tlwh)
-        features = self._get_features(bbox_tlbr, rgb_img)
-        detections = [Detection(bbox, features[i]) for i, bbox in enumerate(bbox_tlwh)]
+            # update tracker and predictions object
+            self.tracker.predict() # update track_id's time_since_update and age increasement
+            self.tracker.update(detections, predictions) # update predictions with tracked ID and Color
+            # filter untracked persons' keypoints
+            tracked_predictions = list(filter(lambda x: x.id, predictions))
+            if debug:
+                debug_img = rgb_img[...,::-1].copy()
+                self.debug_bboxes(debug_img, self.tracker.tracks, bbox_tlbr)
+                return tracked_predictions, debug_img
 
-        # update tracker and predictions object
-        self.tracker.predict() # update track_id's time_since_update and age increasement
-        self.tracker.update(detections, predictions) # update predictions with tracked ID and Color
-        # filter untracked persons' keypoints
-        tracked_predictions = list(filter(lambda x: x.id, predictions))
-        if debug:
-            debug_img = rgb_img[...,::-1].copy()
-            self.debug_bboxes(debug_img, self.tracker.tracks, bbox_tlbr)
-            return tracked_predictions, debug_img
-
-        return tracked_predictions, None
+            return tracked_predictions, None
+        except Exception as e:
+            print(f"Ошибка в DeepSort.predict: {e}")
+            self.tracker.increment_ages()
+            # Важно: возвращаем исходные предсказания без изменений
+            return predictions, None
 
     def increment_ages(self):
         self.tracker.increment_ages()
@@ -89,13 +94,44 @@ class DeepSort(object):
         im_crops = []
         for box in bbox_tlbr:
             x1, y1, x2, y2 = map(int, box)
+            # Проверка границ, чтобы избежать ошибок при обрезке
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(ori_img.shape[1], x2), min(ori_img.shape[0], y2)
+            
+            # Проверка, что область обрезки не пуста
+            if x1 >= x2 or y1 >= y2:
+                continue
+                
             im = ori_img[y1:y2, x1:x2]
+            if im.size == 0:
+                continue
             im_crops.append(im)
-        if im_crops:
-            features = self.extractor(im_crops)
+        
+        if not im_crops:
+            return np.array([])
+        
+        # Обработка небольшими партиями
+        batch_size = 2  # Очень маленький размер партии для надежности
+        features_list = []
+        
+        for i in range(0, len(im_crops), batch_size):
+            batch = im_crops[i:i+batch_size]
+            try:
+                batch_features = self.extractor(batch)
+                # Преобразуем тензор в numpy массив
+                if hasattr(batch_features, 'cpu'):
+                    batch_features = batch_features.cpu().numpy()
+                features_list.append(batch_features)
+            except Exception as e:
+                print(f"Ошибка обработки партии {i}/{len(im_crops)}: {e}")
+                # Добавляем заглушки для неудачных изображений
+                dummy_features = np.zeros((len(batch), 128))  # Предполагаем размерность признаков 128
+                features_list.append(dummy_features)
+        
+        if features_list:
+            return np.vstack(features_list)
         else:
-            features = np.array([])
-        return features
+            return np.array([])
 
     @staticmethod
     def tlwh_to_tlbr(bbox_tlwh):

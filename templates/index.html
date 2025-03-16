@@ -78,9 +78,13 @@
         const videoFeed = document.getElementById('video-feed');
 
         screenshotButton.addEventListener('click', () => {
+            // Generate a random filename
+            const randomFilename = `screenshot_${Date.now()}_${Math.floor(Math.random() * 10000)}.jpg`;
+    
+            // Create a link and download the frame
             const link = document.createElement('a');
             link.href = videoFeed.src; // Capture current stream frame
-            link.download = 'screenshot.jpg'; // Suggested filename
+            link.download = randomFilename; // Unique filename
             link.click();
         });
 

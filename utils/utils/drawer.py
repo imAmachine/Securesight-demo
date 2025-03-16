@@ -62,9 +62,21 @@ class Drawer:
 
     def draw_bbox_label(self, image, pred):
         scale = self.scale - 0.1
-        x1, y1, x2, y2 = pred.bbox.astype(np.int16)
-        # draw person bbox
-        cv2.rectangle(image, (x1,y1), (x2,y2), self.color, self.thickness)
+        
+        # Преобразование bbox в numpy массив, если это список или другой тип
+        if not isinstance(pred.bbox, np.ndarray):
+            bbox = np.array(pred.bbox)
+        else:
+            bbox = pred.bbox
+        
+        # Проверка размерности bbox
+        if len(bbox) == 4:
+            x1, y1, w, h = bbox.astype(np.int16)
+            x2, y2 = x1 + w, y1 + h  # Если bbox в формате (x, y, width, height)
+        else:
+            x1, y1, x2, y2 = bbox.astype(np.int16)  # Если в формате (x1, y1, x2, y2)
+            # draw person bbox
+            cv2.rectangle(image, (x1,y1), (x2,y2), self.color, self.thickness)
 
         def get_label_position(label, is_track=False):
             w, h = cv2.getTextSize(label, self.font, scale, self.thickness)[0]
