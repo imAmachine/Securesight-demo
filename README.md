@@ -5,12 +5,12 @@ python 3.10 Установка
 1. cmd
 - python -m venv ./venv в папке проекта в терминале
 - ./venv/Scripts/activate
-- pip install uv ninja
-- uv pip install -r requirements.txt
+- pip install uv ninja numpy
+- uv pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118
 2. установка torch2trt
 - git clone https://github.com/NVIDIA-AI-IOT/torch2trt.git
 - cd torch2trt
-- uv pip install /requirements/requirements_10.txt
+- uv pip install requirements/requirements_10.txt
 - python setup.py install
 - cd ..
 3. установка trt_pose
@@ -18,5 +18,7 @@ python 3.10 Установка
 - cd trt_pose
 - python setup.py install
 - cd ..
-4. Запуск
+4. Зависимости
+- uv pip install joblib==1.4.2 scikit-learn==1.4.1.post1 rich==13.9.4 onnxruntime==1.21.0
+5. Запуск
 - python app.py
