@@ -7,17 +7,16 @@ python 3.10 Установка
 - ./venv/Scripts/activate
 - pip install uv ninja
 - uv pip install -r requirements.txt
-2. cmd
-установка torch2trt
+2. установка torch2trt
 - git clone https://github.com/NVIDIA-AI-IOT/torch2trt.git
 - cd torch2trt
 - uv pip install /requirements/requirements_10.txt
 - python setup.py install
 - cd ..
-установка trt_pose
+3. установка trt_pose
 - git clone https://github.com/NVIDIA-AI-IOT/trt_pose.git
 - cd trt_pose
 - python setup.py install
 - cd ..
-Запуск
+4. Запуск
 - python app.py
