@@ -18,6 +18,7 @@ python 3.10 Установка
 - cd trt_pose
 - python setup.py install
 - cd ..
+
 4.Зависимости
 - uv pip install joblib==1.4.2 scikit-learn==1.4.1.post1 rich==13.9.4 onnxruntime==1.21.0
 4. Запуск
