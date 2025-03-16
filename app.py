@@ -1,4 +1,3 @@
-import yaml
 from flask import Flask, Response, render_template
 import cv2
 import threading
@@ -9,7 +8,6 @@ from utils.tracker import get_tracker
 from utils.utils.config import Config
 from utils.utils.drawer import Drawer
 from utils.utils.utils import convert_to_openpose_skeletons
-from utils.utils.video import Video
 
 # Загрузка конфигурации
 config = Config("config.yaml")
@@ -27,7 +25,7 @@ def process_frame(rgb_frame):
     predictions = pose_estimator.predict(rgb_frame, get_bbox=True)
     if len(predictions) == 0:
         tracker.increment_ages()
-        return rgb_frame  # Return the original frame (as a numpy array)
+        return rgb_frame
 
     predictions = convert_to_openpose_skeletons(predictions)
     predictions, _ = tracker.predict(rgb_frame, predictions)
@@ -37,7 +35,7 @@ def process_frame(rgb_frame):
     
     drawer = Drawer()
     annotated_frame = drawer.render_frame(rgb_frame, predictions, text_color='green', add_blank=False, Mode='action')  # Add annotations to frame
-    return annotated_frame  # Return the modified frame
+    return annotated_frame
 
 def generate_frames():
     cap = cv2.VideoCapture(1)

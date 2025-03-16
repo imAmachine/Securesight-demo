@@ -14,9 +14,35 @@
             height: 100vh;
             flex-direction: column;
         }
+
+        #header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 80%;
+            margin-bottom: 20px;
+        }
+
         h1 {
             color: #333;
+            margin: 0;
         }
+
+        #controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button, select {
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #333;
+            color: white;
+        }
+
         #video-container {
             background-color: #000;
             border: 5px solid #333;
@@ -24,15 +50,46 @@
             overflow: hidden;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
         }
+
         #video-feed {
             display: block;
+            width: 100%;
+            height: auto;
         }
     </style>
 </head>
 <body>
-    <h1>Real-Time Webcam Stream</h1>
-    <div id="video-container">
-        <img id="video-feed" src="{{ url_for('video_feed') }}" width="640" height="480">
+    <div id="header">
+        <h1>Real-Time Webcam Stream</h1>
+        <div id="controls">
+            <select id="model-select">
+                <option value="behavior">Поведение</option>
+                <option value="emotion">Эмоции</option>
+            </select>
+            <button id="screenshot-btn">Сделать скриншот</button>
+        </div>
     </div>
+    <div id="video-container">
+        <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Video Stream">
+    </div>
+
+    <script>
+        const screenshotButton = document.getElementById('screenshot-btn');
+        const videoFeed = document.getElementById('video-feed');
+
+        screenshotButton.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.href = videoFeed.src; // Capture current stream frame
+            link.download = 'screenshot.jpg'; // Suggested filename
+            link.click();
+        });
+
+        const modelSelect = document.getElementById('model-select');
+        modelSelect.addEventListener('change', () => {
+            const selectedModel = modelSelect.value;
+            console.log(`Selected Model: ${selectedModel}`);
+            // Implement server-side logic to switch models here
+        });
+    </script>
 </body>
 </html>
