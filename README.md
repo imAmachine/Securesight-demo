@@ -14,7 +14,7 @@ python 3.10 Установка
 - uv pip install /requirements/requirements_10.txt
 - python setup.py install
 - cd ..
-  установка trt_pose
+установка trt_pose
 - git clone https://github.com/NVIDIA-AI-IOT/trt_pose.git
 - cd trt_pose
 - python setup.py install
