@@ -1,6 +1,6 @@
 На windows. 
 python 3.10 Установка
-Обязательно установить CUDA SDK 12.8 и Microsoft BuildKit (установить компонент для C++ разработки)
+Обязательно установить CUDA SDK 12.8 и Microsoft BuildTools (установить компонент для C++ разработки)
 В переменные среды windows добавить переменную CUDA_HOME=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8
 1. cmd
 - python -m venv ./venv в папке проекта в терминале
