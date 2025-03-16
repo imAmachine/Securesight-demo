@@ -8,7 +8,7 @@ python 3.10 Установка
 - pip install uv ninja
 - uv pip install -r requirements.txt
 2. cmd
-  установка torch2trt
+установка torch2trt
 - git clone https://github.com/NVIDIA-AI-IOT/torch2trt.git
 - cd torch2trt
 - uv pip install /requirements/requirements_10.txt
