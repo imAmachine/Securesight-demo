@@ -1,8 +1,10 @@
 import os
+import sys
 import json
 from collections import OrderedDict
 
 import torch
+from utils.utils.annotation import Annotation
 try: import torch2trt
 except: print('torch2trt not installed.')
 import numpy as np
@@ -10,8 +12,6 @@ from PIL import Image
 import torchvision.transforms as transforms
 from trt_pose import models, coco
 from trt_pose.parse_objects import ParseObjects
-
-from utils.annotation import Annotation
 
 
 POSE_META = {
@@ -34,51 +34,37 @@ class TrtPose:
             link_threshold=0.1,
             )
 
-    def __init__(self, size, model_path, min_leg_joints, min_total_joints, include_head=True):
+    def __init__(self, size, model_path, min_leg_joints, min_total_joints, include_head=True, **kwargs):
+        self.__dict__.update(self._params)
+        self.__dict__.update(kwargs)
+
         self.min_total_joints = min_total_joints
         self.min_leg_joints = min_leg_joints
         self.include_head = include_head
 
         if not isinstance(size, (tuple, list)):
             size = (size, size)
-        self.height, self.width = size
+        if isinstance(model_path, (tuple, list)):
+            model_path = os.path.join(*model_path)
+        self.height,self.width = size
         self.model_path = model_path
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # Загрузка топологии
+        # load humanpose json data
         self.topology = coco.coco_category_to_topology(POSE_META)
-        self.parse_objects = ParseObjects(self.topology, cmap_threshold=0.1, link_threshold=0.1)
+        self.parse_objects = ParseObjects(self.topology, cmap_threshold=self.cmap_threshold, link_threshold=self.link_threshold)
 
-        # Автоматическая загрузка модели densenet121
-        self.model = self._load_torch_model(self.model_path, backbone='densenet121')
+        # load is_trt model
+        if self.model_path.endswith('.trt'):
+            self.model  = self._load_trt_model(self.model_path)
+        else:
+            self.model = self._load_torch_model(self.model_path, backbone=self.backbone)
 
-        # Трансформации изображения
+        # transformer
         self.transforms = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-
-    def _load_torch_model(self, model_file, backbone='densenet121'):
-        """Загрузка модели densenet121 из файла или автоматически"""
-        num_parts = POSE_META['num_parts']
-        num_links = POSE_META['num_links']
-
-        if backbone == 'densenet121':
-            print(f"[INFO] Загрузка модели densenet121 из {model_file}")
-            model = models.densenet121_baseline_att(
-                cmap_channels=num_parts,
-                paf_channels=2 * num_links
-            )
-        else:
-            raise ValueError(f"Неподдерживаемая модель: {backbone}")
-
-        # Загрузка весов модели
-        if os.path.isfile(model_file):
-            model.load_state_dict(torch.load(model_file, map_location='cpu'))
-        else:
-            print(f"[WARNING] Файл с весами {model_file} не найден. Используется модель без весов.")
-
-        return model.to(self.device).eval()
+            ])
 
     def _load_trt_model(self, model_file):
         """load converted tensorRT model"""
