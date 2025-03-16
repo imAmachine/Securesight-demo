@@ -18,5 +18,7 @@ python 3.10 Установка
 - cd trt_pose
 - python setup.py install
 - cd ..
+4.Зависимости
+- uv pip install mediapipe joblib scikit-learn
 4. Запуск
 - python app.py
