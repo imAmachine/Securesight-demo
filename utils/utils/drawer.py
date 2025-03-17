@@ -69,16 +69,8 @@ class Drawer:
         else:
             bbox = pred.bbox
         
-        x1, y1, x2, y2 = 0, 0, 0, 0
-        
-        # Проверка размерности bbox
-        if len(bbox) == 4:
-            x1, y1, w, h = bbox.astype(np.int16)
-            x2, y2 = x1 + w, y1 + h
-        else:
-            x1, y1, x2, y2 = bbox.astype(np.int16)
-            # draw person bbox
-        
+        # draw person bbox
+        x1, y1, x2, y2 = bbox.astype(np.int16)
         cv2.rectangle(image, (x1,y1), (x2,y2), self.color, self.thickness)
 
         def get_label_position(label, is_track=False):
