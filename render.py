@@ -14,7 +14,8 @@ from utils.utils.drawer import Drawer
 from utils.utils.utils import convert_to_openpose_skeletons
 
 class ActionDetectionSystem:
-    def __init__(self, config_path="config.yaml", max_objects=8):
+    def __init__(self, config_path="config.yaml", max_objects=8, camera_id=0):
+        self.camera_id = camera_id
         # Загрузка конфигурации
         self.config = Config(config_path)
         self.current_objects = []

@@ -69,14 +69,9 @@ class Drawer:
         else:
             bbox = pred.bbox
         
-        # Проверка размерности bbox
-        if len(bbox) == 4:
-            x1, y1, w, h = bbox.astype(np.int16)
-            x2, y2 = x1 + w, y1 + h  # Если bbox в формате (x, y, width, height)
-        else:
-            x1, y1, x2, y2 = bbox.astype(np.int16)  # Если в формате (x1, y1, x2, y2)
-            # draw person bbox
-            cv2.rectangle(image, (x1,y1), (x2,y2), self.color, self.thickness)
+        # draw person bbox
+        x1, y1, x2, y2 = bbox.astype(np.int16)
+        cv2.rectangle(image, (x1,y1), (x2,y2), self.color, self.thickness)
 
         def get_label_position(label, is_track=False):
             w, h = cv2.getTextSize(label, self.font, scale, self.thickness)[0]
@@ -92,22 +87,36 @@ class Drawer:
                 is_upper_pos = False
             return xmax, ymax, y_text, is_upper_pos
 
+        # Draw text with white color on dark background for better visibility
+        bg_color = (50, 50, 50)
+        text_color = (255, 255, 255)
+
         if pred.id:
             track_label = f'{pred.id}'
             *track_loc, is_upper_pos = get_label_position(track_label, is_track=True)
-            cv2.rectangle(image, (x1, y1), (track_loc[0], track_loc[1]), self.color, -1)
+            cv2.rectangle(image, (x1, y1), (track_loc[0], track_loc[1]), bg_color, -1)
             cv2.putText(image, track_label, (x1+1, track_loc[2]), self.font,
-                        scale, (0, 0, 0), self.thickness)
+                        scale, text_color, self.thickness)
 
-            # draw text over rectangle background
-            if pred.action[0]:
-                action_label = '{}: {:.2f}'.format(*pred.action) if pred.action[0] else ''
+            # Draw action label if available
+            if hasattr(pred, 'action') and pred.action and pred.action[0]:
+                action_label = '{}: {:.2f}'.format(*pred.action)
                 if not is_upper_pos:
                     action_label = f'{track_label}-{action_label}'
                 action_loc = get_label_position(action_label)
-                cv2.rectangle(image, (x1, y1), (action_loc[0], action_loc[1]), self.color, -1)
+                cv2.rectangle(image, (x1, y1), (action_loc[0], action_loc[1]), bg_color, -1)
                 cv2.putText(image, action_label, (x1+1, action_loc[2]), self.font,
-                            scale, (0, 0, 0), self.thickness)
+                            scale, text_color, self.thickness)
+            
+            # Draw emotion label if available
+            if hasattr(pred, 'emotion') and pred.emotion and pred.emotion != 'unknown':
+                emotion_text = f"Emotion: {pred.emotion}"
+                if hasattr(pred, 'emotion_score'):
+                    emotion_text += f" ({pred.emotion_score:.2f})"
+                emotion_loc = get_label_position(emotion_text, is_track=True)
+                cv2.rectangle(image, (x1, y1+20), (emotion_loc[0], emotion_loc[1]+20), bg_color, -1)
+                cv2.putText(image, emotion_text, (x1+1, emotion_loc[2]+20), self.font,
+                            scale, text_color, self.thickness)
 
 
     def add_user_text(self, image, text_color='red', add_blank=True, **user_text):

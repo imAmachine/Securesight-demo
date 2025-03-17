@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Real-Time Object Detection</title>
+    <title>Обработка в реальном времени с помощью компьютерного зрения</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -71,10 +71,10 @@
             margin-top: 5px;
         }
 
-        #screenshot-btn {
+        button {
             margin-top: auto; /* Прижимает кнопку к низу */
             padding: 12px 20px;
-            background-color: #4CAF50;
+            background-color:rgb(53, 144, 186);
             color: white;
             border: none;
             border-radius: 6px;
@@ -85,23 +85,28 @@
 
         #model-controls {
             display: flex;
+            flex-direction: column;
             gap: 10px;
             margin-bottom: 20px;
         }
 
         .model-btn {
-            padding: 10px 20px;
+            padding: 12px 20px;
+            background-color: rgb(53, 144, 186);
+            color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
-            background-color: #ddd;
+            font-size: 14px;
             transition: all 0.3s;
+            text-align: center;
         }
-        
+
         .model-btn.active {
             background-color: #4CAF50;
-            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
+
 
         .emoji-text {
             font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'NotoColorEmoji', sans-serif;
@@ -116,6 +121,11 @@
             height: 100px;
             opacity: 0.8;
         }
+        #screenshot-btn {
+            background-color: #4CAF50;
+            height: 70px;
+        }
+        
     </style>
 </head>
 <body>
@@ -128,12 +138,12 @@
         </div>
         
         <div id="sidebar">
-            <div id="model-controls">
-                <button class="model-btn active" data-model="behavior">Поведение</button>
-                <button class="model-btn" data-model="emotion">Эмоции</button>
-            </div>
             <h2>Обнаруженные объекты</h2>
             <div id="objects-list"></div>
+            <div id="model-controls">
+                <button class="model-btn active" id="action-btn" data-model="behavior">Определять действия</button>
+                <button class="model-btn" id="face-btn" data-model="emotion">Определять эмоции</button>
+            </div>
             <button id="screenshot-btn">Сделать скриншот</button>
         </div>
     </div>
