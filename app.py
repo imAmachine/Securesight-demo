@@ -15,7 +15,7 @@ def video_feed():
     model_type = request.args.get('model', 'behavior')
     current_system = detection_system if model_type == 'behavior' else emotion_system
     return Response(
-        generate_frames(current_system), 
+        generate_frames(current_system, camera_id=1), 
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
 

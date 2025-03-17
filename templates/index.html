@@ -179,6 +179,7 @@
                 currentModel = this.dataset.model;
                 
                 // Обновляем видео поток и данные объектов
+                videoFeed.src = ''
                 videoFeed.src = `/video_feed?model=${currentModel}`;
                 fetchObjects();
             });
