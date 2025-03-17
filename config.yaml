@@ -38,3 +38,10 @@ CLASSIFIER:
   model_path:
      - *weight_root
      - action_classifier3.pt # action_classifier
+
+# for emotion classifier
+EMOTION:
+  name: "facial_emotion"
+  threshold: 0.6
+  face_model_path: "utils/weights/haarcascade_frontalface_default.xml"
+  use_dnn: false

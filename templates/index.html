@@ -1,99 +1,64 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <title>Real-Time Webcam Stream</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            flex-direction: column;
-        }
-
-        #header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 80%;
-            margin-bottom: 20px;
-        }
-
-        h1 {
-            color: #333;
-            margin: 0;
-        }
-
-        #controls {
-            display: flex;
-            gap: 10px;
-        }
-
-        button, select {
-            padding: 10px;
-            font-size: 16px;
-            cursor: pointer;
-            border: none;
-            border-radius: 5px;
-            background-color: #333;
-            color: white;
-        }
-
-        #video-container {
-            background-color: #000;
-            border: 5px solid #333;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-        }
-
-        #video-feed {
-            display: block;
-            width: 100%;
-            height: auto;
-        }
-    </style>
-</head>
-<body>
-    <div id="header">
-        <h1>Real-Time Webcam Stream</h1>
-        <div id="controls">
-            <select id="model-select">
-                <option value="behavior">Поведение</option>
-                <option value="emotion">Эмоции</option>
-            </select>
-            <button id="screenshot-btn">Сделать скриншот</button>
+    <html>
+    <head>
+        <title>Система обработки видео</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .container { display: flex; }
+            .video { flex: 2; }
+            .controls { flex: 1; padding: 20px; }
+            button { margin: 5px; padding: 10px; cursor: pointer; }
+            .active { background-color: #4CAF50; color: white; }
+        </style>
+    </head>
+    <body>
+        <h1>Система обработки видео</h1>
+        <div class="container">
+            <div class="video">
+                <img src="/video_feed" width="100%">
+            </div>
+            <div class="controls">
+                <h3>Выбор метода обработки:</h3>
+                <button onclick="setMethod('pose')" id="btn-pose">Только поза</button>
+                <button onclick="setMethod('action')" id="btn-action" class="active">Действия</button>
+                <button onclick="setMethod('emotion')" id="btn-emotion">Эмоции</button>
+                <button onclick="setMethod('full')" id="btn-full">Полная обработка</button>
+            </div>
         </div>
-    </div>
-    <div id="video-container">
-        <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Video Stream">
-    </div>
-
-    <script>
-        const screenshotButton = document.getElementById('screenshot-btn');
-        const videoFeed = document.getElementById('video-feed');
-
-        screenshotButton.addEventListener('click', () => {
-            // Generate a random filename
-            const randomFilename = `screenshot_${Date.now()}_${Math.floor(Math.random() * 10000)}.jpg`;
-    
-            // Create a link and download the frame
-            const link = document.createElement('a');
-            link.href = videoFeed.src; // Capture current stream frame
-            link.download = randomFilename; // Unique filename
-            link.click();
-        });
-
-        const modelSelect = document.getElementById('model-select');
-        modelSelect.addEventListener('change', () => {
-            const selectedModel = modelSelect.value;
-            console.log(`Selected Model: ${selectedModel}`);
-            // Implement server-side logic to switch models here
-        });
-    </script>
-</body>
-</html>
+        
+        <script>
+            // Функция для установки метода обработки
+            function setMethod(method) {
+                fetch('/set_method', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({method: method}),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Обновление активной кнопки
+                        document.querySelectorAll('button').forEach(btn => {
+                            btn.classList.remove('active');
+                        });
+                        document.getElementById('btn-' + method).classList.add('active');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            }
+            
+            // Получение доступных методов при загрузке страницы
+            window.onload = function() {
+                fetch('/get_available_methods')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Available methods:', data.methods);
+                });
+            };
+        </script>
+    </body>
+    </html>
