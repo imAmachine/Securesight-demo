@@ -14,8 +14,7 @@ from utils.utils.drawer import Drawer
 from utils.utils.utils import convert_to_openpose_skeletons
 
 class ActionDetectionSystem:
-    def __init__(self, config_path="config.yaml", max_objects=8, camera_id=0):
-        self.camera_id = camera_id
+    def __init__(self, config_path="config.yaml", max_objects=8):
         # Загрузка конфигурации
         self.config = Config(config_path)
         self.current_objects = []
@@ -185,7 +184,6 @@ class EmotionDetectionSystem:
         }
         self.current_objects = []
         self.frame_lock = threading.Lock()
-        self.qr_code = self._load_qr_code("qrcode.png")
 
     def _load_fonts(self):
         fonts = {
@@ -204,12 +202,6 @@ class EmotionDetectionSystem:
                 return ImageFont.truetype("NotoColorEmoji.ttf", 40)
         except:
             return self.fonts['text']
-
-    def _load_qr_code(self, path):
-        qr = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-        if qr is None:
-            print(f"Ошибка загрузки QR-кода: {path}")
-        return qr
 
     def process_frame(self, rgb_frame):
         try:
@@ -242,12 +234,12 @@ class EmotionDetectionSystem:
             for x, y, emotion in emotions_data:
                 frame_pil = self._draw_emotion_info(frame_pil, x, y, emotion)
 
-            final_frame = self._add_ui_elements(np.array(frame_pil))
+            frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
             
             with self.frame_lock:
                 self.current_objects = emotions_data
                 
-            return final_frame
+            return cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR)
             
         except Exception as e:
             print(f"Emotion processing error: {e}")
@@ -277,58 +269,9 @@ class EmotionDetectionSystem:
         
         return frame_pil
 
-    def _add_ui_elements(self, frame):
-        frame = cv2.copyMakeBorder(frame, 10, 10, 10, 10, 
-                                 cv2.BORDER_CONSTANT, value=(0, 0, 255))
-        
-        frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        draw = ImageDraw.Draw(frame_pil)
-        
-        text = emoji.emojize("Я люблю ВШИТиАС :red_heart:", language='alias')
-        text_part, emoji_part = text.split()[:-1], text.split()[-1]
-        
-        text_width = self.fonts['text'].getlength(' '.join(text_part) + ' ')
-        position = ((frame.shape[1] - text_width) // 2, 5)
-        
-        draw.text(position, ' '.join(text_part) + ' ', 
-                 font=self.fonts['text'], fill=(0, 0, 0))
-        draw.text((position[0] + text_width, 0), emoji_part,
-                 font=self.fonts['emoji'], fill=(0, 0, 0))
-        
-        frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
-        return self._handle_qr_code(frame)
-
-    def _handle_qr_code(self, frame_rgb):
-        if self.qr_code is None:
-            return frame_rgb
-        
-        qr_rgb = cv2.cvtColor(self.qr_code, cv2.COLOR_BGR2RGB)
-            
-        qr_h, qr_w = qr_rgb.shape[:2]
-        frame_h, frame_w = frame_rgb.shape[:2]
-        max_qr_size = min(frame_w // 4, frame_h // 4)
-        
-        if qr_h > max_qr_size:
-            qr = cv2.resize(self.qr_code, (max_qr_size, max_qr_size))
-        else:
-            qr = self.qr_code
-
-        x_offset = frame_w - qr.shape[1] - 10
-        y_offset = frame_h - qr.shape[0] - 10
-
-        if qr.shape[2] == 4:
-            alpha = qr[:, :, 3] / 255.0
-            for c in range(3):
-                frame_rgb[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1], c] = \
-                    alpha * qr[:, :, c] + (1 - alpha) * frame_rgb[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1], c]
-        else:
-            frame_rgb[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1]] = qr
-        
-        return frame_rgb
-
     def get_current_objects(self):
         return [{
             "id": idx,
             "emotion": emotion,
-            "confidence": 0.95  # Можно добавить реальное значение из DeepFace
+            "confidence": 0.95
         } for idx, (_, _, emotion) in enumerate(self.current_objects)]

@@ -179,6 +179,7 @@
                 currentModel = this.dataset.model;
                 
                 // Обновляем видео поток и данные объектов
+                videoFeed.src = ''
                 videoFeed.src = `/video_feed?model=${currentModel}`;
                 fetchObjects();
             });
@@ -201,30 +202,46 @@
         }
 
         // Скриншот
-        screenshotBtn.addEventListener('click', () => {
-        try {
-            // Устанавливаем размеры canvas
-            canvas.width = videoFeed.videoWidth;
-            canvas.height = videoFeed.videoHeight;
-            
-            // Рисуем текущий кадр
-            ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
-            
-            // Создаем Data URL
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-            
-            // Создаем временную ссылку
-            const link = document.createElement('a');
-            link.href = dataUrl;
-            link.download = `screenshot_${Date.now()}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } catch (error) {
-            console.error('Ошибка при создании скриншота:', error);
-            alert('Не удалось создать скриншот');
-        }
-    });
+        screenshotBtn.addEventListener('click', async () => {
+            try {
+                console.log('Кнопка нажата');
+        
+                // Создаем временное изображение для загрузки текущего кадра
+                const tempImage = new Image();
+                tempImage.crossOrigin = "anonymous"; // Убирает проблемы с CORS
+                tempImage.src = videoFeed.src; 
+                
+                tempImage.onload = () => {
+                    if (!tempImage.width || !tempImage.height) {
+                        throw new Error('Изображение недоступно или размеры равны нулю');
+                    }
+        
+                    canvas.width = tempImage.width;
+                    canvas.height = tempImage.height;
+                    ctx.drawImage(tempImage, 0, 0, canvas.width, canvas.height);
+        
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                    console.log('Data URL создан:', dataUrl);
+        
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = `screenshot_${Date.now()}.jpg`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+        
+                    console.log('Скриншот успешно создан');
+                };
+        
+                tempImage.onerror = (err) => {
+                    throw new Error('Ошибка загрузки изображения: ' + err.message);
+                };
+        
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert(`Ошибка: ${error.message}`);
+            }
+        });  
 
         // Обновление данных каждые 500 мс
         setInterval(fetchObjects, 500);
