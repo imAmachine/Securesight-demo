@@ -75,39 +75,39 @@ class SimpleEmotionClassifier:
         # Если нет модели эмоций, используем только обнаружение лиц
         if self.emotion_model is None:
             # Обнаруживаем лица
-            faces = self.detect_faces(frame)
-            
-            # Добавляем эмоции как "unknown" к предсказаниям
-            for i, pred in enumerate(predictions):
-                if hasattr(pred, "bbox") and pred.bbox is not None:
-                    # Находим ближайшее лицо к текущему bbox
-                    closest_face = None
-                    min_dist = float('inf')
-                    
-                    bbox = pred.bbox
-                    bbox_center = (bbox[0] + bbox[2]/2, bbox[1] + bbox[3]/2)
-                    
-                    for face in faces:
-                        face_center = (face[0] + face[2]/2, face[1] + face[3]/2)
-                        dist = ((bbox_center[0] - face_center[0])**2 + 
-                                (bbox_center[1] - face_center[1])**2)**0.5
+            try:
+                faces = self.detect_faces(frame)
+                results = []
+                
+                for (x, y, w, h) in faces:
+                    # Обрезаем и обрабатываем лицо
+                    face_roi = frame[y:y+h, x:x+w]
+                    if face_roi.size == 0:
+                        continue
                         
-                        if dist < min_dist:
-                            min_dist = dist
-                            closest_face = face
+                    # Конвертируем в grayscale для модели
+                    gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
+                    resized = cv2.resize(gray, (48, 48))
                     
-                    # Если нашли близкое лицо, сохраняем его как "face_bbox"
-                    if closest_face is not None and min_dist < bbox[2]:  # Используем ширину bbox как порог
-                        pred.face_bbox = closest_face
-                        pred.emotion = "detected"  # Так как у нас нет модели, просто указываем, что лицо обнаружено
+                    # Предсказание эмоции
+                    if self.emotion_model:
+                        label, confidence = self.emotion_model.predict(resized)
+                        emotion = self.classes[label]
                     else:
-                        pred.emotion = "unknown"
+                        emotion = "unknown"
+                        confidence = 0.0
+                        
+                    results.append((
+                        emotion,
+                        confidence / 100.0,  # Нормализуем confidence
+                        (x, y, w, h)
+                    ))
                     
-                    pred.emotion_score = 1.0
-        else:
-            pass
-        
-        return predictions
+                return results
+                
+            except Exception as e:
+                print(f"Emotion classification error: {e}")
+                return []
 
 def get_emotion_classifier(**config):
     """Factory function to create an emotion classifier based on config."""

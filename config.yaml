@@ -41,7 +41,9 @@ CLASSIFIER:
 
 # for emotion classifier
 EMOTION:
-  name: "facial_emotion"
-  threshold: 0.6
-  face_model_path: "utils/weights/haarcascade_frontalface_default.xml"
-  use_dnn: false
+  qr_code_path: "qrcode.png"
+  font_paths:
+    text: "fonts/arial.ttf"
+    emoji_windows: "fonts/seguiemj.ttf"
+    emoji_mac: "fonts/Apple Color Emoji.ttf"
+    emoji_linux: "fonts/NotoColorEmoji.ttf"
