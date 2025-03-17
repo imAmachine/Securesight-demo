@@ -10,7 +10,8 @@ from utils.utils.drawer import Drawer
 from utils.utils.utils import convert_to_openpose_skeletons
 
 class ActionDetectionSystem:
-    def __init__(self, config_path="config.yaml", max_objects=8):
+    def __init__(self, config_path="config.yaml", max_objects=8, camera_id=0):
+        self.camera_id = camera_id
         # Загрузка конфигурации
         self.config = Config(config_path)
         self.current_objects = []
@@ -123,18 +124,15 @@ class ActionDetectionSystem:
         # Рендеринг кадра
         return self.render_frame(rgb_frame, predictions)
 
-def generate_frames(system, camera_id=0):
-    cap = cv2.VideoCapture(camera_id)
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Ошибка: не удалось захватить кадр")
-            break
-        
-        if isinstance(system, ActionDetectionSystem):
-            processed_frame = system.process_frame(frame)
-        else:
-            processed_frame = system.process_frame(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        ret, buffer = cv2.imencode('.jpg', processed_frame)
-        frame_data = buffer.tobytes()
-        yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
+    def generate_frames(self):
+        cap = cv2.VideoCapture(self.camera_id)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Ошибка: не удалось захватить кадр")
+                break
+            
+            processed_frame = self.process_frame(frame)
+            ret, buffer = cv2.imencode('.jpg', processed_frame)
+            frame_data = buffer.tobytes()
+            yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')

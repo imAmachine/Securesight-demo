@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Real-Time Object Detection</title>
+    <title>Обработка в реальном времени с помощью компьютерного зрения</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -71,16 +71,21 @@
             margin-top: 5px;
         }
 
-        #screenshot-btn {
+        button {
             margin-top: auto; /* Прижимает кнопку к низу */
             padding: 12px 20px;
-            background-color: #4CAF50;
+            background-color:rgb(53, 144, 186);
             color: white;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
             transition: background-color 0.3s;
+        }
+
+        #screenshot-btn {
+            background-color: #4CAF50;
+            height: 70px;
         }
     </style>
 </head>
@@ -96,6 +101,8 @@
         <div id="sidebar">
             <h2>Обнаруженные объекты</h2>
             <div id="objects-list"></div>
+            <button id="action-btn">Определять действия</button>
+            <button id="face-btn">Определять эмоции</button>
             <button id="screenshot-btn">Сделать скриншот</button>
         </div>
     </div>

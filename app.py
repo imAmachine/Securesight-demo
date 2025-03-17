@@ -1,8 +1,8 @@
 from flask import Flask, Response, render_template, jsonify
-from render import ActionDetectionSystem, generate_frames
+from render import ActionDetectionSystem
 
 app = Flask(__name__)
-detection_system = ActionDetectionSystem(max_objects=15)
+detection_system = ActionDetectionSystem(max_objects=15, camera_id=1)
 
 @app.route('/')
 def index():
@@ -11,7 +11,7 @@ def index():
 @app.route('/video_feed')
 def video_feed():
     return Response(
-        generate_frames(detection_system), 
+        detection_system.generate_frames(), 
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
 
