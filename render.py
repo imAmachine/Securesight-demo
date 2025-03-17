@@ -152,11 +152,36 @@ class EmotionDetectionSystem:
         self.face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
         self.fonts = self._load_fonts()
         self.emotion_data = {
-            "happy": ("Счастье", "😊", (0, 255, 0)),
-            "sad": ("Грусть", "😢", (255, 0, 0)),
-            "angry": ("Злость", "😠", (0, 0, 255)),
-            "surprise": ("Удивление", "😲", (0, 255, 255)),
-            "neutral": ("Нейтрально", "😐", (128, 128, 128))
+            "happy": {
+                "text": "Счастье",
+                "emoji": "😊",
+                "bgr": (0, 255, 0),    # Зеленый для рамки (BGR)
+                "rgb": (0, 255, 0)     # Зеленый для текста (RGB)
+            },
+            "sad": {
+                "text": "Грусть",
+                "emoji": "😢",
+                "bgr": (0, 0, 255),    # Красный для рамки (BGR)
+                "rgb": (255, 0, 0)     # Красный для текста (RGB)
+            },
+            "angry": {
+                "text": "Злость",
+                "emoji": "😠",
+                "bgr": (255, 0, 0),    # Синий для рамки (BGR)
+                "rgb": (0, 0, 255)     # Синий для текста (RGB)
+            },
+            "surprise": {
+                "text": "Удивление",
+                "emoji": "😲",
+                "bgr": (0, 255, 255),  # Желтый для рамки (BGR)
+                "rgb": (255, 255, 0)   # Желтый для текста (RGB)
+            },
+            "neutral": {
+                "text": "Нейтрально",
+                "emoji": "😐",
+                "bgr": (128, 128, 128),# Серый для рамки (BGR)
+                "rgb": (128, 128, 128) # Серый для текста (RGB)
+            }
         }
         self.current_objects = []
         self.frame_lock = threading.Lock()
@@ -188,8 +213,9 @@ class EmotionDetectionSystem:
 
     def process_frame(self, rgb_frame):
         try:
-            frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
+            gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
+
             faces = self.face_cascade.detectMultiScale(
                 gray, 
                 scaleFactor=1.3,
@@ -198,21 +224,30 @@ class EmotionDetectionSystem:
             
             emotions_data = []
             for (x, y, w, h) in faces:
-                emotion = self._process_face(frame, x, y, w, h)
+                emotion = self._process_face(bgr_frame, x, y, w, h)
+                emotion_info = self.emotion_data.get(
+                    emotion if emotion else "neutral", 
+                    self.emotion_data["neutral"]
+                )
+                
+                # Рисуем рамку в BGR
+                cv2.rectangle(bgr_frame, (x, y), (x+w, y+h), emotion_info["bgr"], 2)
+
                 if emotion:
                     emotions_data.append((x, y, emotion))
 
-            frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
+            frame_pil = Image.fromarray(rgb_frame)
+
             for x, y, emotion in emotions_data:
                 frame_pil = self._draw_emotion_info(frame_pil, x, y, emotion)
 
-            frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
-            frame = self._add_ui_elements(frame)
+            final_frame = self._add_ui_elements(np.array(frame_pil))
             
             with self.frame_lock:
                 self.current_objects = emotions_data
                 
-            return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            return final_frame
             
         except Exception as e:
             print(f"Emotion processing error: {e}")
@@ -228,23 +263,23 @@ class EmotionDetectionSystem:
             return None
 
     def _draw_emotion_info(self, frame_pil, x, y, emotion):
-        text_part, emoji_part, color = self.emotion_data.get(
-            emotion, self.emotion_data["neutral"]
-        )
+        emotion_info = self.emotion_data.get(emotion, self.emotion_data["neutral"])
         draw = ImageDraw.Draw(frame_pil)
         
         text_position = (x, y - 45)
-        draw.text(text_position, text_part, font=self.fonts['text'], fill=color)
+        draw.text(text_position, emotion_info["text"], 
+             font=self.fonts['text'], fill=emotion_info["rgb"])
         
-        text_width = self.fonts['text'].getlength(text_part)
+        text_width = self.fonts['text'].getlength(emotion_info["text"])
         emoji_position = (x + text_width + 5, y - 50)
-        draw.text(emoji_position, emoji_part, font=self.fonts['emoji'], fill=color)
+        draw.text(emoji_position, emotion_info["emoji"], 
+             font=self.fonts['emoji'], fill=emotion_info["rgb"])
         
         return frame_pil
 
     def _add_ui_elements(self, frame):
         frame = cv2.copyMakeBorder(frame, 10, 10, 10, 10, 
-                                 cv2.BORDER_CONSTANT, value=(255, 0, 0))
+                                 cv2.BORDER_CONSTANT, value=(0, 0, 255))
         
         frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(frame_pil)
@@ -263,12 +298,14 @@ class EmotionDetectionSystem:
         frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
         return self._handle_qr_code(frame)
 
-    def _handle_qr_code(self, frame):
+    def _handle_qr_code(self, frame_rgb):
         if self.qr_code is None:
-            return frame
+            return frame_rgb
+        
+        qr_rgb = cv2.cvtColor(self.qr_code, cv2.COLOR_BGR2RGB)
             
-        qr_h, qr_w = self.qr_code.shape[:2]
-        frame_h, frame_w = frame.shape[:2]
+        qr_h, qr_w = qr_rgb.shape[:2]
+        frame_h, frame_w = frame_rgb.shape[:2]
         max_qr_size = min(frame_w // 4, frame_h // 4)
         
         if qr_h > max_qr_size:
@@ -282,12 +319,12 @@ class EmotionDetectionSystem:
         if qr.shape[2] == 4:
             alpha = qr[:, :, 3] / 255.0
             for c in range(3):
-                frame[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1], c] = \
-                    alpha * qr[:, :, c] + (1 - alpha) * frame[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1], c]
+                frame_rgb[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1], c] = \
+                    alpha * qr[:, :, c] + (1 - alpha) * frame_rgb[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1], c]
         else:
-            frame[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1]] = qr
+            frame_rgb[y_offset:y_offset+qr.shape[0], x_offset:x_offset+qr.shape[1]] = qr
         
-        return frame
+        return frame_rgb
 
     def get_current_objects(self):
         return [{
