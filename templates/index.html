@@ -1,64 +1,167 @@
 <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Система обработки видео</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .container { display: flex; }
-            .video { flex: 2; }
-            .controls { flex: 1; padding: 20px; }
-            button { margin: 5px; padding: 10px; cursor: pointer; }
-            .active { background-color: #4CAF50; color: white; }
-        </style>
-    </head>
-    <body>
-        <h1>Система обработки видео</h1>
-        <div class="container">
-            <div class="video">
-                <img src="/video_feed" width="100%">
-            </div>
-            <div class="controls">
-                <h3>Выбор метода обработки:</h3>
-                <button onclick="setMethod('pose')" id="btn-pose">Только поза</button>
-                <button onclick="setMethod('action')" id="btn-action" class="active">Действия</button>
-                <button onclick="setMethod('emotion')" id="btn-emotion">Эмоции</button>
-                <button onclick="setMethod('full')" id="btn-full">Полная обработка</button>
+<html>
+<head>
+    <title>Real-Time Object Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            height: 96vh;
+            background-color: #f0f0f0;
+        }
+
+        #main-container {
+            display: flex;
+            width: 100%;
+            gap: 20px;
+        }
+
+        #video-section {
+            flex: 3;
+            min-width: 640px;
+        }
+
+        #sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            flex: 1;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+
+        #objects-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        #video-container {
+            background-color: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            height: 96vh;
+        }
+
+        #video-feed {
+            width: 100%;
+            height: auto;
+        }
+
+        .object-card {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .object-id {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .object-action {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        #screenshot-btn {
+            margin-top: auto; /* Прижимает кнопку к низу */
+            padding: 12px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <canvas id="screenshot-canvas" style="display:none;"></canvas>
+        <div id="video-section">
+            <div id="video-container">
+                <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Video Stream">
             </div>
         </div>
         
-        <script>
-            // Функция для установки метода обработки
-            function setMethod(method) {
-                fetch('/set_method', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({method: method}),
-                })
+        <div id="sidebar">
+            <h2>Обнаруженные объекты</h2>
+            <div id="objects-list"></div>
+            <button id="screenshot-btn">Сделать скриншот</button>
+        </div>
+    </div>
+
+    <script>
+        const screenshotBtn = document.getElementById('screenshot-btn');
+        const objectsList = document.getElementById('objects-list');
+        const videoFeed = document.getElementById('video-feed');
+        const canvas = document.getElementById('screenshot-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Функция для создания элемента объекта
+        function createObjectElement(obj) {
+            const div = document.createElement('div');
+            div.className = 'object-card';
+            div.innerHTML = `
+                <div class="object-id">ID: ${obj.id}</div>
+                <div class="object-action">Действие: ${obj.action} (${(obj.confidence * 100).toFixed(1)}%)</div>
+            `;
+            return div;
+        }
+
+        // Обновление списка объектов
+        function updateObjects(data) {
+            objectsList.innerHTML = '';
+            data.forEach(obj => {
+                objectsList.appendChild(createObjectElement(obj));
+            });
+        }
+
+        // Запрос данных об объектах
+        function fetchObjects() {
+            fetch('/objects_data')
                 .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        // Обновление активной кнопки
-                        document.querySelectorAll('button').forEach(btn => {
-                            btn.classList.remove('active');
-                        });
-                        document.getElementById('btn-' + method).classList.add('active');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-            }
+                .then(updateObjects)
+                .catch(console.error);
+        }
+
+        // Скриншот
+        screenshotBtn.addEventListener('click', () => {
+        try {
+            // Устанавливаем размеры canvas
+            canvas.width = videoFeed.videoWidth;
+            canvas.height = videoFeed.videoHeight;
             
-            // Получение доступных методов при загрузке страницы
-            window.onload = function() {
-                fetch('/get_available_methods')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Available methods:', data.methods);
-                });
-            };
-        </script>
-    </body>
-    </html>
+            // Рисуем текущий кадр
+            ctx.drawImage(videoFeed, 0, 0, canvas.width, canvas.height);
+            
+            // Создаем Data URL
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            
+            // Создаем временную ссылку
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `screenshot_${Date.now()}.jpg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error('Ошибка при создании скриншота:', error);
+            alert('Не удалось создать скриншот');
+        }
+    });
+
+        // Обновление данных каждые 500 мс
+        setInterval(fetchObjects, 500);
+    </script>
+</body>
+</html>

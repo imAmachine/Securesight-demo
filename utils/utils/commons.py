@@ -9,7 +9,6 @@ COLORS = {
     'orange' : (0, 165, 255),
     'purple' : (255, 0, 255),
     'white' : (255, 255, 255),
-    'black' : (0, 0, 0),
     }
 
 LIMB_PAIRS = [

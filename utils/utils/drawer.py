@@ -97,7 +97,7 @@ class Drawer:
             *track_loc, is_upper_pos = get_label_position(track_label, is_track=True)
             cv2.rectangle(image, (x1, y1), (track_loc[0], track_loc[1]), self.color, -1)
             cv2.putText(image, track_label, (x1+1, track_loc[2]), self.font,
-                        scale, COLORS['black'], self.thickness)
+                        scale, (0, 0, 0), self.thickness)
 
             # draw text over rectangle background
             if pred.action[0]:
@@ -107,7 +107,7 @@ class Drawer:
                 action_loc = get_label_position(action_label)
                 cv2.rectangle(image, (x1, y1), (action_loc[0], action_loc[1]), self.color, -1)
                 cv2.putText(image, action_label, (x1+1, action_loc[2]), self.font,
-                            scale, COLORS['black'], self.thickness)
+                            scale, (0, 0, 0), self.thickness)
 
 
     def add_user_text(self, image, text_color='red', add_blank=True, **user_text):
