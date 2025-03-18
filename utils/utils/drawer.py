@@ -24,15 +24,15 @@ class Drawer:
         fonts = {}
         try:
             # Шрифт для текста (желательно поддерживающий кириллицу)
-            fonts['text'] = ImageFont.truetype("arial.ttf", 28)
+            fonts['text'] = ImageFont.truetype("arial.ttf", 16)
             
             # Шрифт для эмодзи
             if platform.system() == "Windows":
-                fonts['emoji'] = ImageFont.truetype("seguiemj.ttf", 40)
+                fonts['emoji'] = ImageFont.truetype("seguiemj.ttf", 22)
             elif platform.system() == "Darwin":
-                fonts['emoji'] = ImageFont.truetype("Apple Color Emoji.ttf", 40)
+                fonts['emoji'] = ImageFont.truetype("Apple Color Emoji.ttf", 22)
             else:
-                fonts['emoji'] = ImageFont.truetype("NotoColorEmoji.ttf", 40)
+                fonts['emoji'] = ImageFont.truetype("NotoColorEmoji.ttf", 22)
         except Exception as e:
             print(f"Ошибка загрузки шрифтов: {e}")
             fonts['text'] = ImageFont.load_default()
@@ -129,10 +129,11 @@ class Drawer:
         text_color = (255, 255, 255)
         
         # Расстояние между строками текста
-        line_height = 32
+        line_height = 18
+        margin = 10
         
         # Отрисовка ID если есть
-        current_y = y1
+        current_y = y1 - line_height * 2 - margin
         if hasattr(pred, 'id') and pred.id:
             track_id_text = f'ID: {pred.id}'
             text_width = self.pil_fonts['text'].getlength(track_id_text)
@@ -184,65 +185,6 @@ class Drawer:
                 text_width = self.pil_fonts['text'].getlength(emotion_text)
                 draw.text((x1 + text_width + 15, current_y - 5), emoji_text, 
                          font=self.pil_fonts['emoji'], fill=text_color)
-
-    def draw_bbox_label(self, image, pred):
-        """Устаревший метод - оставлен для обратной совместимости"""
-        scale = self.scale - 0.1
-        
-        # Преобразование bbox в numpy массив, если это список или другой тип
-        if not isinstance(pred.bbox, np.ndarray):
-            bbox = np.array(pred.bbox)
-        else:
-            bbox = pred.bbox
-        
-        # draw person bbox
-        x1, y1, x2, y2 = bbox.astype(np.int16)
-        cv2.rectangle(image, (x1,y1), (x2,y2), self.color, self.thickness)
-
-        def get_label_position(label, is_track=False):
-            w, h = cv2.getTextSize(label, self.font, scale, self.thickness)[0]
-            offset_w, offset_h = w + 3, h + 5
-            xmax = x1 + offset_w
-            is_upper_pos = True
-            if (y1 - offset_h) < 0 or is_track:
-                ymax = y1 + offset_h
-                y_text = ymax - 2
-            else:
-                ymax = y1 - offset_h
-                y_text = y1 - 2
-                is_upper_pos = False
-            return xmax, ymax, y_text, is_upper_pos
-
-        # Draw text with white color on dark background for better visibility
-        bg_color = (50, 50, 50)
-        text_color = (255, 255, 255)
-
-        if pred.id:
-            track_label = f'{pred.id}'
-            *track_loc, is_upper_pos = get_label_position(track_label, is_track=True)
-            cv2.rectangle(image, (x1, y1), (track_loc[0], track_loc[1]), bg_color, -1)
-            cv2.putText(image, track_label, (x1+1, track_loc[2]), self.font,
-                        scale, text_color, self.thickness)
-
-            # Draw action label if available
-            if hasattr(pred, 'action') and pred.action and pred.action[0]:
-                action_label = '{}: {:.2f}'.format(*pred.action)
-                if not is_upper_pos:
-                    action_label = f'{track_label}-{action_label}'
-                action_loc = get_label_position(action_label)
-                cv2.rectangle(image, (x1, y1), (action_loc[0], action_loc[1]), bg_color, -1)
-                cv2.putText(image, action_label, (x1+1, action_loc[2]), self.font,
-                            scale, text_color, self.thickness)
-            
-            # Draw emotion label if available
-            if hasattr(pred, 'emotion') and pred.emotion and pred.emotion != 'unknown':
-                emotion_text = f"Emotion: {pred.emotion}"
-                if hasattr(pred, 'emotion_score'):
-                    emotion_text += f" ({pred.emotion_score:.2f})"
-                emotion_loc = get_label_position(emotion_text, is_track=True)
-                cv2.rectangle(image, (x1, y1+20), (emotion_loc[0], emotion_loc[1]+20), bg_color, -1)
-                cv2.putText(image, emotion_text, (x1+1, emotion_loc[2]+20), self.font,
-                            scale, text_color, self.thickness)
 
 
     def add_user_text(self, image, text_color='red', add_blank=True, **user_text):
