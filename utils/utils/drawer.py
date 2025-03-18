@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
+import platform
+from PIL import Image, ImageDraw, ImageFont
 
 from .commons import *
 
@@ -15,6 +17,27 @@ class Drawer:
         self.scale = 0.6 if thickness <= 2 else 0.8
         self.thickness = thickness
         self.font = cv2.FONT_HERSHEY_COMPLEX
+        self.pil_fonts = self._load_fonts()
+
+    def _load_fonts(self):
+        """Загрузка шрифтов для корректного отображения русских символов и эмодзи"""
+        fonts = {}
+        try:
+            # Шрифт для текста (желательно поддерживающий кириллицу)
+            fonts['text'] = ImageFont.truetype("arial.ttf", 28)
+            
+            # Шрифт для эмодзи
+            if platform.system() == "Windows":
+                fonts['emoji'] = ImageFont.truetype("seguiemj.ttf", 40)
+            elif platform.system() == "Darwin":
+                fonts['emoji'] = ImageFont.truetype("Apple Color Emoji.ttf", 40)
+            else:
+                fonts['emoji'] = ImageFont.truetype("NotoColorEmoji.ttf", 40)
+        except Exception as e:
+            print(f"Ошибка загрузки шрифтов: {e}")
+            fonts['text'] = ImageFont.load_default()
+            fonts['emoji'] = None
+        return fonts
 
     def render_frame(self, image, predictions, **user_text_kwargs):
         """Draw all persons [skeletons / tracked_id / action] annotations on image
@@ -28,12 +51,25 @@ class Drawer:
             return pred
 
         predictions = [_scale_keypoints(pred) for pred in predictions]
-        # draw the results
+        
+        # Сначала рисуем скелеты и bounding boxes
         for pred in predictions:
             if pred.color is not None: self.color = pred.color
             self.draw_trtpose(render_frame, pred)
             if pred.bbox is not None:
-                self.draw_bbox_label(render_frame, pred)
+                self.draw_bbox(render_frame, pred)
+        
+        # Конвертируем в RGB для PIL
+        rgb_frame = cv2.cvtColor(render_frame, cv2.COLOR_BGR2RGB)
+        pil_image = Image.fromarray(rgb_frame)
+        
+        # Теперь рисуем текстовые метки
+        for pred in predictions:
+            if pred.bbox is not None:
+                self.draw_labels_pil(pil_image, pred)
+        
+        # Конвертируем обратно в BGR для OpenCV
+        render_frame = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
         if len(user_text_kwargs)>0:
             render_frame = self.add_user_text(render_frame, **user_text_kwargs)
@@ -60,7 +96,97 @@ class Drawer:
             start, end = map(tuple, [pred.keypoints[pair[0]], pred.keypoints[pair[1]]])
             cv2.line(image, start[1:], end[1:], self.color, self.thickness)
 
+    def draw_bbox(self, image, pred):
+        """Рисует только bbox без текстовых меток"""
+        # Преобразование bbox в numpy массив, если это список или другой тип
+        if not isinstance(pred.bbox, np.ndarray):
+            bbox = np.array(pred.bbox)
+        else:
+            bbox = pred.bbox
+        
+        # draw person bbox
+        x1, y1, x2, y2 = bbox.astype(np.int16)
+        cv2.rectangle(image, (x1,y1), (x2,y2), self.color, self.thickness)
+
+    def draw_labels_pil(self, pil_image, pred):
+        """Рисует текстовые метки с использованием PIL для поддержки русского языка"""
+        draw = ImageDraw.Draw(pil_image)
+        
+        # Если шрифты не загружены, выходим
+        if 'text' not in self.pil_fonts or self.pil_fonts['text'] is None:
+            return
+        
+        # Преобразование bbox
+        if not isinstance(pred.bbox, np.ndarray):
+            bbox = np.array(pred.bbox)
+        else:
+            bbox = pred.bbox
+        
+        x1, y1, x2, y2 = bbox.astype(np.int16)
+        
+        # Цвета для фона и текста
+        bg_color = (50, 50, 50)
+        text_color = (255, 255, 255)
+        
+        # Расстояние между строками текста
+        line_height = 32
+        
+        # Отрисовка ID если есть
+        current_y = y1
+        if hasattr(pred, 'id') and pred.id:
+            track_id_text = f'ID: {pred.id}'
+            text_width = self.pil_fonts['text'].getlength(track_id_text)
+            
+            # Рисуем фон
+            draw.rectangle([(x1, current_y), (x1 + text_width + 10, current_y + line_height)], 
+                          fill=bg_color)
+            
+            # Рисуем текст
+            draw.text((x1 + 5, current_y + 2), track_id_text, 
+                     font=self.pil_fonts['text'], fill=text_color)
+            
+            current_y += line_height
+        
+        # Отрисовка действия если есть
+        if hasattr(pred, 'action') and pred.action and pred.action[0]:
+            action_text = f'{pred.action[0]}: {pred.action[1]:.2f}'
+            text_width = self.pil_fonts['text'].getlength(action_text)
+            
+            # Рисуем фон
+            draw.rectangle([(x1, current_y), (x1 + text_width + 10, current_y + line_height)], 
+                          fill=bg_color)
+            
+            # Рисуем текст
+            draw.text((x1 + 5, current_y + 2), action_text, 
+                     font=self.pil_fonts['text'], fill=text_color)
+            
+            current_y += line_height
+        
+        # Отрисовка эмоции если есть
+        if hasattr(pred, 'emotion') and pred.emotion and pred.emotion != 'unknown':
+            emotion_text = f'Эмоция: {pred.emotion}'
+            if hasattr(pred, 'emotion_score'):
+                emotion_text += f' ({pred.emotion_score:.2f})'
+            
+            text_width = self.pil_fonts['text'].getlength(emotion_text)
+            
+            # Рисуем фон
+            draw.rectangle([(x1, current_y), (x1 + text_width + 10, current_y + line_height)], 
+                          fill=bg_color)
+            
+            # Рисуем текст
+            draw.text((x1 + 5, current_y + 2), emotion_text, 
+                     font=self.pil_fonts['text'], fill=text_color)
+            
+            # Добавляем эмодзи если есть
+            if 'emoji' in self.pil_fonts and self.pil_fonts['emoji'] and hasattr(pred, 'emotion_emoji'):
+                emoji_text = pred.emotion_emoji
+                text_width = self.pil_fonts['text'].getlength(emotion_text)
+                draw.text((x1 + text_width + 15, current_y - 5), emoji_text, 
+                         font=self.pil_fonts['emoji'], fill=text_color)
+
     def draw_bbox_label(self, image, pred):
+        """Устаревший метод - оставлен для обратной совместимости"""
         scale = self.scale - 0.1
         
         # Преобразование bbox в numpy массив, если это список или другой тип
@@ -140,56 +266,3 @@ class Drawer:
                 cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_COMPLEX_SMALL,
                             1, COLORS[text_color], 2)
         return image
-
-def plot_confusion_matrix(y_true, y_pred, classes, normalize=False, title=None, cmap=plt.cm.Blues, size=None):
-    """ (Copied from sklearn website)
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
-    if not title:
-        if normalize:
-            title = 'Normalized confusion matrix'
-        else:
-            title = 'Confusion matrix, without normalization'
-
-    # Compute confusion matrix
-    cm = confusion_matrix(y_true, y_pred)
-    # Only use the labels that appear in the data
-    classes = classes[unique_labels(y_true, y_pred)]
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print("Display normalized confusion matrix ...")
-    else:
-        print('Display confusion matrix without normalization ...')
-
-    fig, ax = plt.subplots()
-    if size is None:
-        size = (12, 8)
-    fig.set_size_inches(size[0], size[1])
-
-    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
-    ax.figure.colorbar(im, ax=ax)
-    # We want to show all ticks...
-    ax.set(xticks=np.arange(cm.shape[1]),
-           yticks=np.arange(cm.shape[0]),
-           # ... and label them with the respective list entries
-           xticklabels=classes, yticklabels=classes,
-           title=title,
-           ylabel='True label',
-           xlabel='Predicted label')
-    ax.set_ylim([-0.5, len(classes)-0.5])
-
-    # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-             rotation_mode="anchor")
-
-    # Loop over data dimensions and create text annotations.
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i in range(cm.shape[0]):
-        for j in range(cm.shape[1]):
-            ax.text(j, i, format(cm[i, j], fmt),
-                    ha="center", va="center",
-                    color="white" if cm[i, j] > thresh else "black")
-    fig.tight_layout()
-    return ax, cm

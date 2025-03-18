@@ -32,9 +32,9 @@ TRACKER:
 CLASSIFIER:
   ## custom model
   name: "dnn"
-  classes: ['stand', 'walk', 'run', 'jump', 'sit', 'squat', 'kick', 'punch', 'wave'] ## change with your custom classes
+  classes: ['stand', 'walk', 'run', 'jump', 'sit', 'squat', 'kick', 'punch', 'wave']
   window_size: 5 # 5
-  threshold: 0.5
+  threshold: 0.6
   model_path:
      - *weight_root
      - action_classifier3.pt # action_classifier

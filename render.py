@@ -21,6 +21,20 @@ class ActionDetectionSystem:
         self.initialize_models()
         self.frame_lock = threading.Lock()
         self.max_objects = max_objects
+        
+        # Словарь для перевода действий на русский язык
+        self.action_names = {
+            'stand': 'Стоит',
+            'walk': 'Ходьба',
+            'run': 'Бег',
+            'jump': 'Прыжок',
+            'sit': 'Сидит',
+            'squat': 'Приседает',
+            'kick': 'Удар ногой',
+            'punch': 'Удар рукой',
+            'wave': 'Махание',
+            'unknown': 'Неизвестно'
+        }
     
     def initialize_models(self):
         # Инициализация моделей
@@ -67,54 +81,65 @@ class ActionDetectionSystem:
             
         try:
             predictions = self.action_classifier.classify(predictions)
+            # Добавляем русские названия действий
+            for pred in predictions:
+                if hasattr(pred, 'action') and pred.action and pred.action[0]:
+                    action_name = pred.action[0]
+                    confidence = pred.action[1]
+                    # Переводим название действия на русский (если есть в словаре)
+                    translated_name = self.action_names.get(action_name, action_name)
+                    pred.action = (translated_name, confidence)
         except Exception as e:
             print(f"Ошибка классификатора: {e}")
         
         return predictions
     
-    def render_frame(self, rgb_frame, predictions):
+    def render_frame(self, frame, predictions):
         try:
-            annotated_frame = self.drawer.render_frame(
-                rgb_frame, 
+            return self.drawer.render_frame(
+                frame, 
                 predictions, 
                 text_color='green', 
                 add_blank=False
             )
-            return annotated_frame
         except Exception as e:
             print(f"Ошибка рендеринга: {e}")
-            return rgb_frame
+            return frame
         
     def get_current_objects(self):
         objects_data = []
-        for pred in self.current_objects:
-            try:
-                track_id = getattr(pred, 'id', 'N/A'),
+        with self.frame_lock:
+            for pred in self.current_objects:
+                try:
+                    track_id = getattr(pred, 'id', 'N/A')
+                    action_data = getattr(pred, 'action', ['unknown', 0.0])
 
-                action_data = getattr(pred, 'action', ['unknown', 0.0])
-
-                obj = {
-                    "id": track_id,
-                    "action": str(action_data[0]),
-                    "confidence": float(action_data[1])
-                }
-                objects_data.append(obj)
-            except Exception as e:
-                print(f"Error processing prediction: {e}")
+                    obj = {
+                        "id": track_id,
+                        "action": str(action_data[0]),
+                        "confidence": float(action_data[1])
+                    }
+                    objects_data.append(obj)
+                except Exception as e:
+                    print(f"Error processing prediction: {e}")
         return objects_data
     
-    def process_frame(self, rgb_frame):
+    def process_frame(self, frame):
+        if frame is None:
+            return frame
+            
         # Определение позы
-        predictions = self.predict_poses(rgb_frame)
+        predictions = self.predict_poses(frame)
         if len(predictions) == 0:
-            self.current_objects = []
-            return rgb_frame
+            with self.frame_lock:
+                self.current_objects = []
+            return frame
         
         # Нормализация bbox
         predictions = self.normalize_bboxes(predictions)
         
         # Трекинг объектов
-        predictions = self.track_objects(rgb_frame, predictions)
+        predictions = self.track_objects(frame, predictions)
         
         # Классификация действий
         predictions = self.classify_actions(predictions)
@@ -122,10 +147,11 @@ class ActionDetectionSystem:
         # Повторная нормализация bbox перед рендерингом
         predictions = self.normalize_bboxes(predictions)
 
-        self.current_objects = predictions
+        with self.frame_lock:
+            self.current_objects = predictions
         
         # Рендеринг кадра
-        return self.render_frame(rgb_frame, predictions)
+        return self.render_frame(frame, predictions)
 
 def generate_frames(system, camera_id=0):
     cap = cv2.VideoCapture(camera_id)
@@ -135,13 +161,9 @@ def generate_frames(system, camera_id=0):
             print("Ошибка: не удалось захватить кадр")
             break
         
-        if isinstance(system, ActionDetectionSystem):
-            processed_frame = system.process_frame(frame)
-        else:
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            processed_frame = system.process_frame(rgb_frame)
-            processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_RGB2BGR)
-
+        # Обработка кадра системой
+        processed_frame = system.process_frame(frame)
+        
         ret, buffer = cv2.imencode('.jpg', processed_frame)
         frame_data = buffer.tobytes()
         yield (b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + frame_data + b'\r\n')
@@ -149,7 +171,7 @@ def generate_frames(system, camera_id=0):
 class EmotionDetectionSystem:
     def __init__(self, config_path="config.yaml"):
         self.face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
-        self.fonts = self._load_fonts()
+        self.drawer = Drawer()
         self.emotion_data = {
             "happy": {
                 "text": "Счастье",
@@ -197,65 +219,66 @@ class EmotionDetectionSystem:
         self.current_objects = []
         self.frame_lock = threading.Lock()
 
-    def _load_fonts(self):
-        fonts = {
-            'text': ImageFont.truetype("arial.ttf", 28),
-            'emoji': self._get_emoji_font()
-        }
-        return fonts
-
-    def _get_emoji_font(self):
+    def process_frame(self, frame):
         try:
-            if platform.system() == "Windows":
-                return ImageFont.truetype("seguiemj.ttf", 40)
-            elif platform.system() == "Darwin":
-                return ImageFont.truetype("Apple Color Emoji.ttf", 40)
-            else:
-                return ImageFont.truetype("NotoColorEmoji.ttf", 40)
-        except:
-            return self.fonts['text']
+            # Преобразуем в оттенки серого для обнаружения лиц
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    def process_frame(self, rgb_frame):
-        try:
-            bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
-            gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
-
+            # Обнаружение лиц
             faces = self.face_cascade.detectMultiScale(
                 gray, 
                 scaleFactor=1.3,
                 minNeighbors=5,
-                minSize=(50, 50))
+                minSize=(50, 50)
+            )
             
-            emotions_data = []
-            for (x, y, w, h) in faces:
-                emotion = self._process_face(bgr_frame, x, y, w, h)
-                emotion_info = self.emotion_data.get(
-                    emotion if emotion else "neutral", 
-                    self.emotion_data["neutral"]
-                )
+            # Создаем список предикций в формате, совместимом с Drawer
+            predictions = []
+            
+            for i, (x, y, w, h) in enumerate(faces):
+                # Анализ эмоции
+                emotion = self._process_face(frame, x, y, w, h)
+                if not emotion:
+                    continue
+                    
+                # Получаем информацию о эмоции
+                emotion_info = self.emotion_data.get(emotion, self.emotion_data["neutral"])
                 
-                # Рисуем рамку в BGR
-                cv2.rectangle(bgr_frame, (x, y), (x+w, y+h), emotion_info["bgr"], 2)
-
-                if emotion:
-                    emotions_data.append((x, y, emotion))
-
-            rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
-            frame_pil = Image.fromarray(rgb_frame)
-
-            for x, y, emotion in emotions_data:
-                frame_pil = self._draw_emotion_info(frame_pil, x, y, emotion)
-
-            frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
+                # Создаем объект предикции
+                from types import SimpleNamespace
+                pred = SimpleNamespace()
+                
+                # Устанавливаем keypoints = [] для совместимости с Drawer
+                pred.keypoints = np.zeros((18, 3), dtype=np.int16)
+                
+                # Устанавливаем bbox
+                pred.bbox = np.array([x, y, x+w, y+h])
+                
+                # Устанавливаем ID
+                pred.id = i + 1
+                
+                # Устанавливаем эмоцию
+                pred.emotion = emotion_info["text"]
+                pred.emotion_score = 0.95
+                pred.emotion_emoji = emotion_info["emoji"]
+                
+                # Устанавливаем цвет (в BGR)
+                pred.color = emotion_info["bgr"]
+                
+                predictions.append(pred)
             
             with self.frame_lock:
-                self.current_objects = emotions_data
-                
-            return cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR)
+                self.current_objects = predictions
+            
+            # Используем drawer для отрисовки
+            if predictions:
+                return self.drawer.render_frame(frame, predictions)
+            else:
+                return frame
             
         except Exception as e:
             print(f"Emotion processing error: {e}")
-            return rgb_frame
+            return frame
 
     def _process_face(self, frame, x, y, w, h):
         try:
@@ -266,31 +289,13 @@ class EmotionDetectionSystem:
             print("Ошибка анализа эмоции:", e)
             return None
 
-    def _draw_emotion_info(self, frame_pil, x, y, emotion):
-        emotion_info = self.emotion_data.get(emotion, self.emotion_data["neutral"])
-        draw = ImageDraw.Draw(frame_pil)
-        
-        text_position = (x, y - 45)
-        draw.text(text_position, emotion_info["text"], 
-             font=self.fonts['text'], fill=emotion_info["rgb"])
-        
-        text_width = self.fonts['text'].getlength(emotion_info["text"])
-        emoji_position = (x + text_width + 5, y - 50)
-        draw.text(emoji_position, emotion_info["emoji"], 
-             font=self.fonts['emoji'], fill=emotion_info["rgb"])
-        
-        return frame_pil
-
     def get_current_objects(self):
-        objects = []
-        for idx, (_, _, emotion) in enumerate(self.current_objects):
-            emotion_info = self.emotion_data.get(
-                emotion, 
-                self.emotion_data["neutral"]
-            )
-            objects.append({
-                    "id": idx,
-                    "emotion": f"{emotion} ({emotion_info['text']})",
-                    "confidence": 0.95
+        objects_data = []
+        with self.frame_lock:
+            for pred in self.current_objects:
+                objects_data.append({
+                    "id": pred.id,
+                    "emotion": getattr(pred, 'emotion', 'unknown'),
+                    "confidence": getattr(pred, 'emotion_score', 0.0)
                 })
-        return objects
+        return objects_data
