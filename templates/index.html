@@ -210,10 +210,10 @@
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-                currentModel = this.dataset.model;
+                videoFeed.src = ''
                 
                 // Обновляем видео поток и данные объектов
-                videoFeed.src = ''
+                currentModel = this.dataset.model;
                 videoFeed.src = `/video_feed?model=${currentModel}`;
                 fetchObjects();
             });

@@ -35,6 +35,7 @@ class ActionDetectionSystem:
             'wave': 'Махание',
             'unknown': 'Неизвестно'
         }
+        self.dangerous_actions = ['kick', 'punch']
     
     def initialize_models(self):
         # Инициализация моделей
@@ -81,7 +82,7 @@ class ActionDetectionSystem:
             
         try:
             predictions = self.action_classifier.classify(predictions)
-            # Добавляем русские названия действий
+            # Добавляем русские названия действий и выделяем опасные действия
             for pred in predictions:
                 if hasattr(pred, 'action') and pred.action and pred.action[0]:
                     action_name = pred.action[0]
@@ -89,6 +90,12 @@ class ActionDetectionSystem:
                     # Переводим название действия на русский (если есть в словаре)
                     translated_name = self.action_names.get(action_name, action_name)
                     pred.action = (translated_name, confidence)
+                    
+                    # Выделяем опасные действия красным цветом
+                    if action_name in self.dangerous_actions:
+                        pred.color = (0, 0, 255)  # BGR формат - красный цвет
+                    else:
+                        pred.color = (0, 255, 0)  # BGR формат - зеленый цвет
         except Exception as e:
             print(f"Ошибка классификатора: {e}")
         
@@ -112,8 +119,12 @@ class ActionDetectionSystem:
             for pred in self.current_objects:
                 try:
                     track_id = getattr(pred, 'id', 'N/A')
-                    action_data = getattr(pred, 'action', ['unknown', 0.0])
-
+                    action_data = getattr(pred, 'action', None)
+                    
+                    # Проверка на None и корректность типа
+                    if action_data is None or not isinstance(action_data, (list, tuple)) or len(action_data) < 2:
+                        action_data = ['unknown', 0.0]
+                    
                     obj = {
                         "id": track_id,
                         "action": str(action_data[0]),
@@ -153,8 +164,11 @@ class ActionDetectionSystem:
         # Рендеринг кадра
         return self.render_frame(frame, predictions)
 
-def generate_frames(system, camera_id=0):
+def generate_frames(system, camera_id=0, vedeo_res=(640, 480)):
     cap = cv2.VideoCapture(camera_id)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, vedeo_res[0])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, vedeo_res[1])
+    
     while True:
         ret, frame = cap.read()
         if not ret:

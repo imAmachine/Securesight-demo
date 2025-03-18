@@ -11,7 +11,6 @@ detection_system = ActionDetectionSystem(max_objects=15)
 emotion_system = EmotionDetectionSystem()
 
 
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -19,10 +18,12 @@ def index():
 @app.route('/video_feed')
 def video_feed():
     model_type = request.args.get('model', 'behavior')
-    camera_id = int(request.args.get('camera', '0'))
+    camera_id = int(request.args.get('camera', '1'))
+    vedeo_res = (1280, 720)
+    
     current_system = detection_system if model_type == 'behavior' else emotion_system
     return Response(
-        generate_frames(current_system, camera_id=camera_id), 
+        generate_frames(current_system, camera_id=camera_id, vedeo_res=vedeo_res), 
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
 
