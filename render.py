@@ -160,14 +160,14 @@ class EmotionDetectionSystem:
             "sad": {
                 "text": "Грусть",
                 "emoji": "😢",
-                "bgr": (0, 0, 255),    # Красный для рамки (BGR)
-                "rgb": (255, 0, 0)     # Красный для текста (RGB)
+                "bgr": (255, 0, 0),    # Красный для рамки (BGR)
+                "rgb": (0, 0, 255)     # Красный для текста (RGB)
             },
             "angry": {
                 "text": "Злость",
                 "emoji": "😠",
-                "bgr": (255, 0, 0),    # Синий для рамки (BGR)
-                "rgb": (0, 0, 255)     # Синий для текста (RGB)
+                "bgr": (0, 0, 255),    # Синий для рамки (BGR)
+                "rgb": (255, 0, 0)     # Синий для текста (RGB)
             },
             "surprise": {
                 "text": "Удивление",
@@ -180,6 +180,18 @@ class EmotionDetectionSystem:
                 "emoji": "😐",
                 "bgr": (128, 128, 128),# Серый для рамки (BGR)
                 "rgb": (128, 128, 128) # Серый для текста (RGB)
+            },
+            "fear": {
+                "text": "Страх",
+                "emoji": "😨",
+                "bgr": (255, 255, 0),
+                "rgb": (0, 255, 255)
+            },
+            "disgust": {
+                "text": "Отвращение",
+                "emoji": "🤢",
+                "bgr": (0, 128, 0),
+                "rgb": (0, 128, 0)
             }
         }
         self.current_objects = []
@@ -270,8 +282,15 @@ class EmotionDetectionSystem:
         return frame_pil
 
     def get_current_objects(self):
-        return [{
-            "id": idx,
-            "emotion": emotion,
-            "confidence": 0.95
-        } for idx, (_, _, emotion) in enumerate(self.current_objects)]
+        objects = []
+        for idx, (_, _, emotion) in enumerate(self.current_objects):
+            emotion_info = self.emotion_data.get(
+                emotion, 
+                self.emotion_data["neutral"]
+            )
+            objects.append({
+                    "id": idx,
+                    "emotion": f"{emotion} ({emotion_info['text']})",
+                    "confidence": 0.95
+                })
+        return objects
