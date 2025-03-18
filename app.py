@@ -13,9 +13,10 @@ def index():
 @app.route('/video_feed')
 def video_feed():
     model_type = request.args.get('model', 'behavior')
+    camera_id = int(request.args.get('camera', '1'))
     current_system = detection_system if model_type == 'behavior' else emotion_system
     return Response(
-        generate_frames(current_system, camera_id=0), 
+        generate_frames(current_system, camera_id=camera_id), 
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
 
