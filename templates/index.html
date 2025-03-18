@@ -41,6 +41,7 @@
         }
 
         #video-container {
+            position: relative; 
             background-color: #000;
             border-radius: 10px;
             overflow: hidden;
@@ -113,17 +114,43 @@
             font-size: 24px;
         }
 
-        .qr-code-overlay {
+        .qr-overlay {
             position: absolute;
             bottom: 20px;
             right: 20px;
-            width: 100px;
-            height: 100px;
-            opacity: 0.8;
+            z-index: 1000;
+            padding: 0;
+            background: none;
+            border: none;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); /* Тень только для QR-кода */
         }
+
+        .qr-code {
+            width: 200px;
+            height: 200px;
+            display: block;
+            background: transparent;
+            mix-blend-mode: multiply; /* Для лучшего сочетания с фоном */
+        }
+
+        .qr-overlay:hover {
+            opacity: 0.9;
+        }
+
         #screenshot-btn {
             background-color: #4CAF50;
             height: 70px;
+        }
+
+        .btn-success {
+            background-color: #4CAF50 !important;
+            animation: fadeOut 2s forwards;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
         }
         
     </style>
@@ -134,6 +161,11 @@
         <div id="video-section">
             <div id="video-container">
                 <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Video Stream">
+                <div class="qr-overlay">
+                    <img src="{{ url_for('static', filename='qr-code.png') }}" 
+                         alt="QR Code" 
+                         class="qr-code">
+                </div>
             </div>
         </div>
         
@@ -144,7 +176,9 @@
                 <button class="model-btn active" id="action-btn" data-model="behavior">Определять действия</button>
                 <button class="model-btn" id="face-btn" data-model="emotion">Определять эмоции</button>
             </div>
-            <button id="screenshot-btn">Сделать скриншот</button>
+            <button id="screenshot-btn" data-default-text="Сделать скриншот" data-success-text="✓ Скриншот сохранен!">
+                Сделать скриншот
+              </button>
         </div>
     </div>
 
@@ -201,47 +235,63 @@
                 .catch(console.error);
         }
 
-        // Скриншот
-        screenshotBtn.addEventListener('click', async () => {
+        async function takeScreenshot() {
+            const btn = document.getElementById('screenshot-btn');
+            const defaultText = btn.dataset.defaultText;
+            const successText = btn.dataset.successText;
+
             try {
-                console.log('Кнопка нажата');
-        
-                // Создаем временное изображение для загрузки текущего кадра
-                const tempImage = new Image();
-                tempImage.crossOrigin = "anonymous"; // Убирает проблемы с CORS
-                tempImage.src = videoFeed.src; 
+                btn.disabled = true;
+                btn.textContent = 'Создание скриншота...';
+                const video = document.getElementById('video-feed');
+                const canvas = document.createElement('canvas');
                 
-                tempImage.onload = () => {
-                    if (!tempImage.width || !tempImage.height) {
-                        throw new Error('Изображение недоступно или размеры равны нулю');
-                    }
-        
-                    canvas.width = tempImage.width;
-                    canvas.height = tempImage.height;
-                    ctx.drawImage(tempImage, 0, 0, canvas.width, canvas.height);
-        
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-                    console.log('Data URL создан:', dataUrl);
-        
-                    const link = document.createElement('a');
-                    link.href = dataUrl;
-                    link.download = `screenshot_${Date.now()}.jpg`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-        
-                    console.log('Скриншот успешно создан');
-                };
-        
-                tempImage.onerror = (err) => {
-                    throw new Error('Ошибка загрузки изображения: ' + err.message);
-                };
-        
+                // Используем реальные размеры изображения
+                const videoWidth = video.naturalWidth || video.width;
+                const videoHeight = video.naturalHeight || video.height;
+                
+                if (!videoWidth || !videoHeight) {
+                    throw new Error('Видео не готово для съемки скриншота');
+                }
+
+                canvas.width = videoWidth;
+                canvas.height = videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Конвертация в Blob
+                const blob = await new Promise(resolve => {
+                    canvas.toBlob(resolve, 'image/jpeg', 0.9);
+                });
+
+                // Отправка на сервер
+                const formData = new FormData();
+                formData.append('screenshot', blob, `screenshot_${Date.now()}.jpg`);
+
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                btn.textContent = successText;
+                btn.classList.add('btn-success');
+
+                setTimeout(() => {
+                    btn.textContent = defaultText;
+                    btn.classList.remove('btn-success');
+                    btn.disabled = false;
+                }, 2000);
             } catch (error) {
-                console.error('Ошибка:', error);
-                alert(`Ошибка: ${error.message}`);
+                btn.textContent = 'Ошибка!';
+                setTimeout(() => {
+                    btn.textContent = defaultText;
+                    btn.disabled = false;
+                }, 1000);
             }
-        });  
+        }
+
+        document.getElementById('screenshot-btn').addEventListener('click', takeScreenshot);
 
         // Обновление данных каждые 500 мс
         setInterval(fetchObjects, 500);
