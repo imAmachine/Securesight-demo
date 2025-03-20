@@ -7,7 +7,7 @@ import tempfile
 
 app = Flask(__name__)
 
-detection_system = ActionDetectionSystem(max_objects=15)
+detection_system = ActionDetectionSystem(max_objects=8)
 emotion_system = EmotionDetectionSystem()
 
 
@@ -18,8 +18,8 @@ def index():
 @app.route('/video_feed')
 def video_feed():
     model_type = request.args.get('model', 'behavior')
-    camera_id = int(request.args.get('camera', '1'))
-    vedeo_res = (1280, 720)
+    camera_id = int(request.args.get('camera', '0'))
+    vedeo_res = (960, 720)
     
     current_system = detection_system if model_type == 'behavior' else emotion_system
     return Response(
