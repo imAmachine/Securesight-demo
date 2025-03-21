@@ -6,6 +6,7 @@ import emoji
 from PIL import Image, ImageDraw, ImageFont
 from deepface import DeepFace
 from types import SimpleNamespace
+import mediapipe as mp
 
 from utils.action_classifier import get_classifier
 from utils.pose_estimation import get_pose_estimator
@@ -185,7 +186,10 @@ def generate_frames(system, camera_id=0, vedeo_res=(640, 480)):
 
 class EmotionDetectionSystem:
     def __init__(self, config_path="config.yaml"):
-        self.face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+        self.face_detection = mp.solutions.face_detection.FaceDetection(
+            model_selection=1,  # Выбор модели (1 для ближнего ракурса)
+            min_detection_confidence=0.5
+        )
         self.drawer = Drawer()
         self.emotion_data = {
             "happy": {
@@ -228,23 +232,32 @@ class EmotionDetectionSystem:
         self.CONFIDENCE_THRESHOLD = 0.6  # Порог уверенности для смены эмоции
         self.HISTORY_LENGTH = 5  # Количество кадров для усреднения
 
-        self.MAX_TRACK_AGE = 5  # Максимальное время жизни трека без обновления (в кадрах)
+        self.MAX_TRACK_AGE = 2  # Максимальное время жизни трека без обновления (в кадрах)
         self.MIN_IOU = 0.3  # Минимальное пересечение для обновления трека
-        self.MAX_TRACKS = 5  # Максимальное количество одновременно отслеживаемых лиц
+        self.MAX_TRACKS = 8  # Максимальное количество одновременно отслеживаемых лиц
 
     def process_frame(self, frame):
         try:
             # Преобразуем в оттенки серого для обнаружения лиц
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.face_detection.process(rgb_frame)
 
             # Обнаружение лиц
-            faces = self.face_cascade.detectMultiScale(
-                gray, 
-                scaleFactor=1.1,
-                minNeighbors=7,
-                minSize=(50, 50),
-                flags=cv2.CASCADE_SCALE_IMAGE
-            )
+            faces = []
+            if results.detections:
+                for detection in results.detections:
+                    # Получение прямоугольного bbox
+                    box = detection.location_data.relative_bounding_box
+                    ih, iw, _ = frame.shape
+                    x = int(box.xmin * iw)
+                    y = int(box.ymin * ih)
+                    w = int(box.width * iw)
+                    h = int(box.height * ih)
+                    
+                    # Расширение области для лучшего захвата
+                    y = max(0, y - int(h * 0.15))
+                    h = min(ih - y, int(h * 1.3))
+                    faces.append((x, y, w, h))
 
             self.current_tracks = {
                 track_id: track 
