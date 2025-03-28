@@ -144,13 +144,18 @@
 
         .btn-success {
             background-color: #4CAF50 !important;
-            animation: fadeOut 2s forwards;
+            animation: none !important;
         }
 
-        @keyframes fadeOut {
-            0% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { opacity: 0; }
+        .btn-countdown {
+            background-color: #FF9800 !important;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
         
     </style>
@@ -239,10 +244,26 @@
             const btn = document.getElementById('screenshot-btn');
             const defaultText = btn.dataset.defaultText;
             const successText = btn.dataset.successText;
+            const countdownText = "Скриншот через: ";
 
             try {
                 btn.disabled = true;
-                btn.textContent = 'Создание скриншота...';
+                btn.classList.add('btn-countdown');
+                
+                // Обратный отсчет 5 секунд
+                let seconds = 5;
+                const countdownInterval = setInterval(() => {
+                    btn.textContent = `${countdownText} ${seconds}s`;
+                    seconds--;
+                    
+                    // Меняем цвет в зависимости от оставшегося времени
+                    btn.style.backgroundColor = `hsl(${seconds * 25}, 100%, 45%)`;
+                }, 1000);
+
+                // Ждем 5 секунд перед скриншотом
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                clearInterval(countdownInterval);
+
                 const video = document.getElementById('video-feed');
                 const canvas = document.createElement('canvas');
                 
@@ -275,19 +296,21 @@
                 
                 const result = await response.json();
                 btn.textContent = successText;
-                btn.classList.add('btn-success');
+                btn.classList.replace('btn-countdown', 'btn-success');
 
+            } catch (error) {
+                console.error('Ошибка:', error);
+                btn.textContent = 'Ошибка!';
+                btn.classList.remove('btn-countdown');
+                btn.style.backgroundColor = '';
+            } finally {
+                // Восстановление состояния кнопки
                 setTimeout(() => {
                     btn.textContent = defaultText;
-                    btn.classList.remove('btn-success');
+                    btn.classList.remove('btn-success', 'btn-countdown');
+                    btn.style.backgroundColor = '';
                     btn.disabled = false;
                 }, 2000);
-            } catch (error) {
-                btn.textContent = 'Ошибка!';
-                setTimeout(() => {
-                    btn.textContent = defaultText;
-                    btn.disabled = false;
-                }, 1000);
             }
         }
 

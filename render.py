@@ -320,21 +320,26 @@ class EmotionDetectionSystem:
             predictions = []
             for track_id, track in self.current_tracks.items():
                 x, y, w, h = track['bbox']
-                emotion = self._process_face(frame, x, y, w, h)
+                emotion, confidence = self._process_face(frame, x, y, w, h)
                 
                 if emotion:
                     # Добавляем эмоцию в историю
-                    self.emotion_history[track_id].append(emotion)
+                    self.emotion_history[track_id].append((emotion, confidence))
                     if len(self.emotion_history[track_id]) > self.HISTORY_LENGTH:
                         self.emotion_history[track_id].pop(0)
                     
-                    # Определяем доминирующую эмоцию
-                    counts = {e: self.emotion_history[track_id].count(e) for e in set(self.emotion_history[track_id])}
+                    counts = {}
+                    for e, c in self.emotion_history[track_id]:
+                        counts[e] = counts.get(e, 0) + c
+
                     dominant_emotion = max(counts, key=counts.get)
+                    total_confidence = sum(c for e, c in self.emotion_history[track_id] if e == dominant_emotion)
+                    avg_confidence = total_confidence / len(self.emotion_history[track_id])
                     
                     # Обновляем только если уверенность выше порога
                     if counts[dominant_emotion]/len(self.emotion_history[track_id]) >= self.CONFIDENCE_THRESHOLD:
                         track['emotion'] = dominant_emotion
+                        track['confidence'] = avg_confidence
 
                 # Создаем объект предсказания
                 emotion_info = self.emotion_data.get(track['emotion'], self.emotion_data["neutral"])
@@ -344,7 +349,7 @@ class EmotionDetectionSystem:
                 pred.bbox = np.array([x, y, x+w, y+h])
                 pred.id = track_id
                 pred.emotion = emotion_info["text"]
-                pred.emotion_score = 0.95
+                pred.emotion_score = track['confidence']
                 pred.emotion_emoji = emotion_info["emoji"]
                 pred.color = emotion_info["bgr"]
                 
@@ -378,7 +383,12 @@ class EmotionDetectionSystem:
         try:
             face_roi = frame[y:y+h, x:x+w]
             result = DeepFace.analyze(face_roi, actions=['emotion'], enforce_detection=False)
-            return result[0]['dominant_emotion']
+
+            emotions = result[0]['emotion']
+            dominant_emotion = result[0]['dominant_emotion']
+            confidence = emotions[dominant_emotion] / 100  # DeepFace возвращает проценты
+            
+            return dominant_emotion, confidence
         except Exception as e:
             print("Ошибка анализа эмоции:", e)
             return None
@@ -389,12 +399,13 @@ class EmotionDetectionSystem:
             for pred in self.current_objects:
                 try:
                     track_id = getattr(pred, 'id', 'N/A')
-                    action_data = getattr(pred, 'action', ['unknown', 0.0])
+                    emotion = getattr(pred, 'emotion', 'unknown')
+                    confidence = getattr(pred, 'emotion_score', 0.0)
 
                     obj = {
                         "id": track_id,
-                        "action": str(action_data[0]),
-                        "confidence": float(action_data[1])
+                        "emotion": str(emotion),
+                        "confidence": float(confidence)
                     }
                     objects_data.append(obj)
                 except Exception as e:
